@@ -3,8 +3,7 @@ import numpy as np
 import os, argparse, time, random
 from model import BiLSTM_CRF
 from utils import str2bool, get_logger, get_entity
-from data import read_corpus, read_dictionary, tag2label, random_embedding
-
+from data import read_corpus, read_dictionary, tag2label, random_embedding, read_text_by_line
 
 ## Session configuration
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -37,10 +36,11 @@ args = parser.parse_args()
 
 ## get char embeddings
 word2id = read_dictionary(os.path.join('.', args.train_data, 'word2id.pkl'))
+
 if args.pretrain_embedding == 'random':
     embeddings = random_embedding(word2id, args.embedding_dim)
 else:
-    embedding_path = 'pretrain_embedding.npy'
+    embedding_path = 'data_food/pretrain_embedding.npy'
     embeddings = np.array(np.load(embedding_path), dtype='float32')
 
 
@@ -55,7 +55,7 @@ if args.mode != 'demo':
 ## paths setting
 paths = {}
 timestamp = str(int(time.time())) if args.mode == 'train' else args.demo_model
-output_path = os.path.join('.', args.train_data+"_save", timestamp)
+output_path = os.path.join('.', "data_path_save", timestamp)
 if not os.path.exists(output_path): os.makedirs(output_path)
 summary_path = os.path.join(output_path, "summaries")
 paths['summary_path'] = summary_path
@@ -120,3 +120,28 @@ elif args.mode == 'demo':
                 tag = model.demo_one(sess, demo_data)
                 PER, LOC, ORG = get_entity(tag, demo_sent)
                 print('PER: {}\nLOC: {}\nORG: {}'.format(PER, LOC, ORG))
+
+# predict
+elif args.mode == 'predict':
+    ckpt_file = tf.train.latest_checkpoint(model_path)
+    print(ckpt_file)
+    paths['model_path'] = ckpt_file
+    model = BiLSTM_CRF(args, embeddings, tag2label, word2id, paths, config=config)
+    model.build_graph()
+    saver = tf.train.Saver()
+
+    predict_data = read_text_by_line("data_food/predict.txt")
+
+    with tf.Session(config=config) as sess:
+        print('============= demo =============')
+        saver.restore(sess, ckpt_file)
+
+        print('predict_data: ', predict_data)
+        sess, label_list, seq_len_list, tag_list = model.predict_many(sess, predict_data)
+        for index, tag in enumerate(tag_list):
+            sent = predict_data[index]
+            PER, LOC, ORG = get_entity(tag, sent)
+            # print('sent: 「%s」, PER: %s, LOC: %s, ORG: %s' % (sent, ','.join(PER), ','.join(LOC), ','.join(ORG)))
+            print('sent: %s' % sent)
+            print('PER: {}\nLOC: {}\nORG: {}'.format(PER, LOC, ORG))
+            print('==============================================')

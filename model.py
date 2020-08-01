@@ -4,10 +4,9 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMCell
 from tensorflow.contrib.crf import crf_log_likelihood
 from tensorflow.contrib.crf import viterbi_decode
-from data import pad_sequences, batch_yield
+from data import pad_sequences, batch_yield, batch_yield_sents
 from utils import get_logger
 from eval import conlleval
-
 
 class BiLSTM_CRF(object):
     def __init__(self, args, embeddings, tag2label, vocab, paths, config):
@@ -184,6 +183,24 @@ class BiLSTM_CRF(object):
             label2tag[label] = tag if label != 0 else label
         tag = [label2tag[label] for label in label_list[0]]
         return tag
+
+    def predict_many(self, sess, sents):
+        label_list = []
+        seq_len_list = []
+        tag_list = []
+        label2tag = {}
+        for tag, label in self.tag2label.items():
+            label2tag[label] = tag if label != 0 else label
+        print('label2tag: ', label2tag)
+        for seqs in batch_yield_sents(sents, self.batch_size, self.vocab, self.tag2label, shuffle=False):
+            label_list_, seq_len_list_ = self.predict_one_batch(sess, seqs)
+            label_list.extend(label_list_)
+            seq_len_list.extend(seq_len_list_)
+            for labels in label_list:
+                print('labels: ', labels)
+                tag = [label2tag[label] for label in labels]
+                tag_list.append(tag)
+        return sess, label_list, seq_len_list, tag_list
 
     def run_one_epoch(self, sess, train, dev, tag2label, epoch, saver):
         """

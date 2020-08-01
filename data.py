@@ -9,6 +9,15 @@ tag2label = {"O": 0,
              }
 
 
+def read_text_by_line(file_path):
+    data = []
+    with open(file_path, encoding='utf-8') as fr:
+        lines = fr.readlines()
+        for line in lines:
+            data.append(line.strip())
+    return data
+
+
 def read_corpus(corpus_path):
     """
     read corpus and return the list of samples
@@ -159,3 +168,15 @@ def batch_yield(data, batch_size, vocab, tag2label, shuffle=False):
     if len(seqs) != 0:
         yield seqs, labels
 
+
+def batch_yield_sents(data, batch_size, vocab, tag2label, shuffle=False):
+    if shuffle:
+        random.shuffle(data)
+    seqs = []
+    for sent_ in data:
+        sent_ = sentence2id(sent_, vocab)
+        if len(seqs) == batch_size:
+            yield seqs
+        seqs.append(sent_)
+    if len(seqs) != 0:
+        yield seqs
